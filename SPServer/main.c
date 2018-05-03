@@ -29,6 +29,7 @@ struct process processList[50];
 void server(char* buff, ssize_t size, int fd2, struct process *processList);
 void run(char* buff, char* buff2, int* fd3, struct process *processList);
 void killAll (struct process *processList);
+void* serverInteraction(void* sock);
 
 
 void signalHandler(int signal){
@@ -77,20 +78,29 @@ int main (){
     
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    serv_addr.sin_port = htons(7683);
+    serv_addr.sin_port = htons(7689);
     
     bind(listenfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr));
     
     listen(listenfd, 10);
     
+    write(1, "Welcome to our Server", sizeof("Welcome to our Server"));
+
     
+    int pfd[2];
+    if(pipe(pfd) == -1){
+        perror("error on pfd");
+    }
+    pthread_t sTod;
+//    pthread_t cTos;
+    pthread_create(&sTod, NULL, serverInteraction, (void*) &pfd);
+//    pthread_create(&cTos, NULL, serverInteraction, (void*) &pfd);
 
     
     while(0==0){
         
         connfd = accept(listenfd, (struct sockaddr*)NULL, NULL);
         
-//        write(connfd, "Welcome to our Server", sizeof("Welcome to our Server"));
 
         char buff[1000];
         
@@ -98,10 +108,18 @@ int main (){
         if(pid == -1){
             perror("fork on connect");
         }
-        if(pid==0){
+        
+        if(pid > 0){
+            
+
+            
+        }
+        
+        
+        if(pid == 0){
             
             if(signal(SIGCHLD, signalHandler)==SIG_ERR){
-                perror("error");
+                perror("sigchild error");
             }
             
             for (int i = 0; i < maxProcessLimit; i++) {
@@ -115,17 +133,43 @@ int main (){
                     perror("read from fd1[0]");
                     break;
                 }
-                ssize_t ser = write(STDOUT_FILENO, "server:~ ", strlen("server:~ "));
-                if(ser == -1){
-                    perror("server on console");
-                    continue;
-                }
+//                ssize_t ser = write(STDOUT_FILENO, "\nserver:~ ", strlen("\nserver:~ "));
+//                if(ser == -1){
+//                    perror("server on console");
+//                    continue;
+//                }
                 server(buff, r1, connfd, processList);
             }
         }
     }
     
     return 0;
+}
+
+
+void* serverInteraction(void* sock){
+    
+//    int sockfd = *(int*) sock;
+    
+    while (0==0) {
+        char buff[1000];
+        
+        ssize_t rd1 = read(0, buff, 1000);
+        if(rd1 == -1){
+            perror("read from console");
+            continue;
+        }
+        buff[rd1-1] = '\0';
+        
+        ssize_t wd1 = write(1, buff, rd1);
+        if(wd1 == -1){
+            perror("read from console");
+            continue;
+        }
+        
+    }
+    
+//    pthread_exit(NULL);
 }
 
 
