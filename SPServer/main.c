@@ -15,6 +15,8 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <pthread.h>
+#include <sys/types.h>
+#include <netdb.h>
 
 int maxProcessLimit = 50;
 
@@ -25,11 +27,13 @@ struct process{
 };
 
 struct process processList[50];
+int pfd[2];
 
 void server(char* buff, ssize_t size, int fd2, struct process *processList);
 void run(char* buff, char* buff2, int* fd3, struct process *processList);
 void killAll (struct process *processList);
 void* serverInteraction(void* sock);
+void* processToServer(void* sock);
 
 
 void signalHandler(int signal){
@@ -66,42 +70,41 @@ int main (){
     int listenfd = 0;
     int connfd = 0;
     struct sockaddr_in serv_addr;
-    
     char sendBuff[1025];
     
     //initialization of socket
     listenfd = socket(AF_INET, SOCK_STREAM, 0);
-    
-    
     memset(&serv_addr, '0', sizeof(serv_addr));
     memset(sendBuff, '0', sizeof(sendBuff));
     
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    serv_addr.sin_port = htons(7689);
+    serv_addr.sin_port = htons(7693);
     
     bind(listenfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr));
-    
     listen(listenfd, 10);
     
     write(1, "Welcome to our Server", sizeof("Welcome to our Server"));
-
     
-    int pfd[2];
     if(pipe(pfd) == -1){
         perror("error on pfd");
     }
     pthread_t sTod;
-//    pthread_t cTos;
+    pthread_t cTos;
     pthread_create(&sTod, NULL, serverInteraction, (void*) &pfd);
-//    pthread_create(&cTos, NULL, serverInteraction, (void*) &pfd);
+    pthread_create(&cTos, NULL, processToServer, (void*) &pfd);
 
-    
     while(0==0){
         
         connfd = accept(listenfd, (struct sockaddr*)NULL, NULL);
+        char hostname[1024];
         
-
+        if(getnameinfo((struct sockaddr*)&serv_addr, sizeof(serv_addr), hostname, 1024, NULL, 0, 0) == -1){
+            perror("getnameInfo");
+        }else{
+            printf("hostname of child %s", hostname);
+        }
+        
         char buff[1000];
         
         int pid = fork();
@@ -111,10 +114,7 @@ int main (){
         
         if(pid > 0){
             
-
-            
         }
-        
         
         if(pid == 0){
             
@@ -144,6 +144,15 @@ int main (){
     }
     
     return 0;
+}
+
+void* processToServer(void* sock){
+    
+    //    int sockfd = *(int*) sock;
+    
+
+    
+        pthread_exit(NULL);
 }
 
 
@@ -447,7 +456,7 @@ void server(char* buff, ssize_t size, int fd2, struct process *processList){
                     if(w1 == -1){
                         perror("write on fd2[1]");
                     }
-                    close(fd2);
+                    shutdown(fd2, 2);
                     kill(getpid(), SIGKILL);
                 }
                 
