@@ -97,7 +97,7 @@ int main (){
     
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    serv_addr.sin_port = htons(7709);
+    serv_addr.sin_port = htons(7712);
     
     bind(listenfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr));
     listen(listenfd, 10);
@@ -122,7 +122,7 @@ int main (){
         if(getnameinfo((struct sockaddr*)&serv_addr, sizeof(serv_addr), hostname, 1024, NULL, 0, 0) == -1){
             perror("getnameInfo");
         }else{
-            printf("hostname of child %s", hostname);
+            
         }
         
         char buff[2000];
@@ -157,6 +157,7 @@ int main (){
             connectionList[pC].revfd = fd[0];
             connectionList[pC].sendfd = fd[1];
             connectionList[pC].port = serv_addr.sin_port;
+            strcpy(connectionList[pC].ip, hostname);
             
         }
         
@@ -216,7 +217,20 @@ void* serverInteraction(void* sock){
         }
         buff[rd1-1] = '\0';
         
-        ssize_t wd1 = write(1, buff, rd1);
+        int n = 0;
+        for (int i = 0; i < maxProcessLimit; i++) {
+            if(i==0){
+                sprintf(buff, "\n");
+            }
+            if(connectionList[i].pid < 1){
+                break;
+            }
+            char temp[2000];
+            n += sprintf(temp, "SNO: %d, PID: %d, IP: %s, Port: %d, SocketFD: %d, SendFD: %d, ReceiveFD: %d \n", connectionList[i].sno, connectionList[i].pid, connectionList[i].ip, connectionList[i].port, connectionList[i].sockfd, connectionList[i].sendfd, connectionList[i].revfd);
+            strcat(buff, temp);
+        }
+        
+        ssize_t wd1 = write(1, buff, n);
         if(wd1 == -1){
             perror("read from console");
             continue;
@@ -418,7 +432,7 @@ void server(char* buff, ssize_t size, int fd2, struct process *processList){
             int n = 0;
             
             if(count == 0){
-                write(1, "started", sizeof("started"));
+//                write(1, "started", sizeof("started"));
                 for (int i = 0; i < maxProcessLimit; i++) {
                     if(i==0){
                         sprintf(buff, "\n");
@@ -426,13 +440,13 @@ void server(char* buff, ssize_t size, int fd2, struct process *processList){
                     if(processList[i].pid < 1){
                         break;
                     }
-                    write(1, "loop started", sizeof("loop started"));
+//                    write(1, "loop started", sizeof("loop started"));
                     char temp[2000];
                     if(processList[i].endTime == 0){
                         processList[i].elapsedTime = ((double) clock() - processList[i].startTime);
                     }
                     n += sprintf(temp, "SNO: %d, Name: %s, PID: %d, Status: %d, StartTime: %lu, EndTime: %lu, ElapsedTime: %f \n", processList[i].sno, processList[i].name, processList[i].pid, processList[i].status, processList[i].startTime, processList[i].endTime, processList[i].elapsedTime);
-                    printf("%s", temp);
+//                    printf("%s", temp);
                     strcat(buff, temp);
                 }
                 if(n == 0){
