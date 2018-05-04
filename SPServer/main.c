@@ -47,11 +47,12 @@ struct connection{
 struct connection connectionList[50];
 struct process processList[50];
 
-void server(char* buff, ssize_t size, int fd2, struct process *processList);
-void run(char* buff, char* buff2, int* fd3, int connfd, struct process *processList);
-void killAll (struct process *processList);
+void server(char* buff, ssize_t size, int fd2);
+void run(char* buff, char* buff2, int* fd3, int connfd);
+void killAll(struct process *processList);
 void* serverInteraction(void* sock);
 void* processToServer(void* sock);
+void* getProcessList(void* fd);
 
 
 void signalHandlerChild(int signal){
@@ -127,7 +128,7 @@ int main (){
     
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    serv_addr.sin_port = htons(7714);
+    serv_addr.sin_port = htons(7716);
     
     bind(listenfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr));
     listen(listenfd, 10);
@@ -204,6 +205,9 @@ int main (){
                 processList[i].status = 0;
             }
             
+            pthread_t thread1;
+            pthread_create(&thread1, NULL, &getProcessList, (void*) fd);
+            
             while(0==0){
                 ssize_t r1 = read(connfd, buff, 2000);
                 if(r1 == -1){
@@ -217,7 +221,7 @@ int main (){
                 //                    perror("server on console");
                 //                    continue;
                 //                }
-                server(buff, r1, connfd, processList);
+                server(buff, r1, connfd);
             }
         }
     }
@@ -285,7 +289,7 @@ void* serverInteraction(void* sock){
                             if(i==0){
                                 sprintf(buff, "\n");
                                 if(connectionList[i].pid < 1){
-                                    n = sprintf(buff, "");
+                                    n = sprintf(buff, "no connection");
                                     break;
                                 }
                             }
@@ -300,6 +304,12 @@ void* serverInteraction(void* sock){
                         
                     }else if(strcmp(temp, "processes") == 0){
                         for (int i = 0; i < maxProcessLimit; i++) {
+                            if(i == 0){
+                                if(connectionList[i].pid < 1){
+                                    n = sprintf(buff, "no process");
+                                    break;
+                                }
+                            }
                             if(connectionList[i].pid < 1){
                                 break;
                             }
@@ -359,14 +369,54 @@ void* serverInteraction(void* sock){
 }
 
 
-void getProcessList(int sendfd, int revfd){
-    
-    
-    
+void* getProcessList(void* fd){
+    while(0==0){
+        int *sockfd = (int*) fd;
+        
+        int sendfd = sockfd[1];
+        int revfd = sockfd[0];
+        
+        char buff[2000];
+        
+        ssize_t rd1 = read(revfd, buff, 2000);
+        if(rd1 == -1){
+            perror("error on rd1");
+        }
+        int n = 0;
+        for (int i = 0; i < maxProcessLimit; i++) {
+            if(i==0){
+                sprintf(buff, "\n");
+                if(processList[i].pid < 1){
+                    ssize_t wd1 = write(sendfd, "", 0);
+                    if(wd1 == -1){
+                        perror("error on wd1");
+                    }
+                    break;
+                }
+            }
+            if(processList[i].pid < 1){
+                break;
+            }
+            //                    write(1, "loop started", sizeof("loop started"));
+            char temp[2000];
+            if(processList[i].endTime == 0){
+                processList[i].elapsedTime = ((double) clock() - processList[i].startTime);
+            }
+            n += sprintf(temp, "SNO: %d, Name: %s, PID: %d, Status: %d, StartTime: %lu, EndTime: %lu, ElapsedTime: %f \n", processList[i].sno, processList[i].name, processList[i].pid, processList[i].status, processList[i].startTime, processList[i].endTime, processList[i].elapsedTime);
+            //                    printf("%s", temp);
+            strcat(buff, temp);
+        }
+        
+        ssize_t wd1 = write(sendfd, buff, n);
+        if(wd1 == -1){
+            perror("error on wd1");
+        }
+    }
+//    pthread_exit(NULL);
 }
 
 
-void server(char* buff, ssize_t size, int fd2, struct process *processList){
+void server(char* buff, ssize_t size, int fd2){
     
     buff[size] = '\0';
     
@@ -540,7 +590,7 @@ void server(char* buff, ssize_t size, int fd2, struct process *processList){
                 if(p3 == -1){
                     perror("pipe3");
                 }
-                run(name, program, fd3, fd2, processList);
+                run(name, program, fd3, fd2);
                 
                 
             }
@@ -758,7 +808,7 @@ void killAll (struct process *processList){
 
 
 
-void run(char* buff, char* buff2, int* fd3, int connfd, struct process *processList){
+void run(char* buff, char* buff2, int* fd3, int connfd){
     
     fcntl(fd3[1], F_SETFD, FD_CLOEXEC);
     fcntl(fd3[0], F_SETFD, FD_CLOEXEC);
