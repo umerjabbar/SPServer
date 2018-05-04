@@ -17,20 +17,36 @@
 #include <pthread.h>
 #include <sys/types.h>
 #include <netdb.h>
+#include <time.h>
+#include <fcntl.h>
 
 int maxProcessLimit = 50;
 
 struct process{
+    int sno;
     char name[100];
     int pid;
     int status;
+    clock_t startTime;
+    clock_t endTime;
+    int elapsedTime;
+    
+};
+struct connection{
+    int sno;
+    char ip[15];
+    int port;
+    int pid;
+    int sockfd;
+    int sendfd;
+    int revfd;
 };
 
+struct connection connectionList[50];
 struct process processList[50];
-int pfd[2];
 
 void server(char* buff, ssize_t size, int fd2, struct process *processList);
-void run(char* buff, char* buff2, int* fd3, struct process *processList);
+void run(char* buff, char* buff2, int* fd3, int connfd, struct process *processList);
 void killAll (struct process *processList);
 void* serverInteraction(void* sock);
 void* processToServer(void* sock);
@@ -51,6 +67,8 @@ void signalHandler(int signal){
                 }
                 if(processList[i].pid == pid){
                     processList[i].status = 0;
+                    processList[i].endTime = clock();
+                    processList[i].elapsedTime = ((double)processList[i].endTime - processList[i].startTime)/CLOCKS_PER_SEC;
                     break;
                 }
             }
@@ -79,21 +97,21 @@ int main (){
     
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    serv_addr.sin_port = htons(7693);
+    serv_addr.sin_port = htons(7703);
     
     bind(listenfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr));
     listen(listenfd, 10);
     
     write(1, "Welcome to our Server", sizeof("Welcome to our Server"));
     
-    if(pipe(pfd) == -1){
-        perror("error on pfd");
-    }
+    //    if(pipe(pfd) == -1){
+    //        perror("error on pfd");
+    //    }
     pthread_t sTod;
-    pthread_t cTos;
-    pthread_create(&sTod, NULL, serverInteraction, (void*) &pfd);
-    pthread_create(&cTos, NULL, processToServer, (void*) &pfd);
-
+    //    pthread_t cTos;
+    pthread_create(&sTod, NULL, serverInteraction, (void*) &listenfd);
+    //    pthread_create(&cTos, NULL, processToServer, (void*) &pfd);
+    
     while(0==0){
         
         connfd = accept(listenfd, (struct sockaddr*)NULL, NULL);
@@ -132,12 +150,14 @@ int main (){
                 if(r1 == -1){
                     perror("read from fd1[0]");
                     break;
+                }else if(r1 == 0){
+                    close(connfd);
                 }
-//                ssize_t ser = write(STDOUT_FILENO, "\nserver:~ ", strlen("\nserver:~ "));
-//                if(ser == -1){
-//                    perror("server on console");
-//                    continue;
-//                }
+                //                ssize_t ser = write(STDOUT_FILENO, "\nserver:~ ", strlen("\nserver:~ "));
+                //                if(ser == -1){
+                //                    perror("server on console");
+                //                    continue;
+                //                }
                 server(buff, r1, connfd, processList);
             }
         }
@@ -150,15 +170,15 @@ void* processToServer(void* sock){
     
     //    int sockfd = *(int*) sock;
     
-
     
-        pthread_exit(NULL);
+    
+    pthread_exit(NULL);
 }
 
 
 void* serverInteraction(void* sock){
     
-//    int sockfd = *(int*) sock;
+    //    int sockfd = *(int*) sock;
     
     while (0==0) {
         char buff[1000];
@@ -178,7 +198,7 @@ void* serverInteraction(void* sock){
         
     }
     
-//    pthread_exit(NULL);
+    //    pthread_exit(NULL);
 }
 
 
@@ -233,7 +253,7 @@ void server(char* buff, ssize_t size, int fd2, struct process *processList){
                 token = strtok(NULL, " ,-\n");
             }
             if(count == 0){
-                ssize_t w1 = write(fd2, "usage: subtract [n1] [n2] ...", strlen("usage: subtract [n1] [n2] ..."));
+                ssize_t w1 = write(fd2, "usage: sub [n1] [n2] ...", strlen("usage: subtract [n1] [n2] ..."));
                 if(w1 == -1){
                     perror("write on fd2[1]");
                 }
@@ -270,7 +290,7 @@ void server(char* buff, ssize_t size, int fd2, struct process *processList){
                 token = strtok(NULL, " ,-\n");
             }
             if(count == 0){
-                ssize_t w1 = write(fd2, "usage: divide [n1] [n2] ...", strlen("usage: divide [n1] [n2] ..."));
+                ssize_t w1 = write(fd2, "usage: div [n1] [n2] ...", strlen("usage: divide [n1] [n2] ..."));
                 if(w1 == -1){
                     perror("write on fd2[1]");
                 }
@@ -280,7 +300,7 @@ void server(char* buff, ssize_t size, int fd2, struct process *processList){
                     perror("write on fd2[1]");
                 }
             }else {
-//                printf("invalid %d",invalid);
+                //                printf("invalid %d",invalid);
                 if(invalid == -1){
                     ssize_t w1 = write(fd2, "invalid math", strlen("invalid math"));
                     if(w1 == -1){
@@ -297,7 +317,7 @@ void server(char* buff, ssize_t size, int fd2, struct process *processList){
             }
             
         }
-        else if(strcmp(token, "mul") == 0){
+        else if(strcmp(token, "mult") == 0){
             int count = 0;
             size = 0;
             token = strtok(NULL, " ,-\n");
@@ -307,7 +327,7 @@ void server(char* buff, ssize_t size, int fd2, struct process *processList){
                 token = strtok(NULL, " ,-\n");
             }
             if(count == 0){
-                ssize_t w1 = write(fd2, "usage: multiply [n1] [n2] ...", strlen("usage: multiply [n1] [n2] ..."));
+                ssize_t w1 = write(fd2, "usage: mult [n1] [n2] ...", strlen("usage: multiply [n1] [n2] ..."));
                 if(w1 == -1){
                     perror("write on fd2[1]");
                 }
@@ -352,17 +372,9 @@ void server(char* buff, ssize_t size, int fd2, struct process *processList){
                 if(p3 == -1){
                     perror("pipe3");
                 }
-                run(name, program, fd3, processList);
+                run(name, program, fd3, fd2, processList);
                 
-                ssize_t r3 = read(fd3[0], name, 100);
-                if(r3 == -1){
-                    perror("read from fd3[0]");
-                }
                 
-                ssize_t w1 = write(fd2, name, r3);
-                if(w1 == -1){
-                    perror("write on fd2[1]");
-                }
             }
             
         }
@@ -376,6 +388,7 @@ void server(char* buff, ssize_t size, int fd2, struct process *processList){
             int n = 0;
             
             if(count == 0){
+                write(1, "started", sizeof("started"));
                 for (int i = 0; i < maxProcessLimit; i++) {
                     if(i==0){
                         sprintf(buff, "\n");
@@ -383,8 +396,10 @@ void server(char* buff, ssize_t size, int fd2, struct process *processList){
                     if(processList[i].pid < 1){
                         break;
                     }
+                    write(1, "loop started", sizeof("loop started"));
                     char temp[100];
-                    n += sprintf(temp, "Name: %s, PID: %d, Status: %d\n", processList[i].name, processList[i].pid, processList[i].status);
+                    n += sprintf(temp, "SNO: %d, Name: %s, PID: %d, Status: %d, StartTime: %lu, EndTime: %lu, ElapsedTime: %d \n", processList[i].sno, processList[i].name, processList[i].pid, processList[i].status, processList[i].startTime, processList[i].endTime, processList[i].elapsedTime);
+                    //                    printf("%s", temp);
                     strcat(buff, temp);
                 }
                 if(n == 0){
@@ -503,7 +518,7 @@ void server(char* buff, ssize_t size, int fd2, struct process *processList){
                 }
                 close(fd2);
                 kill(getpid(), SIGKILL);
-//                exit(0);
+                //                exit(0);
                 
             }else {
                 ssize_t w1 = write(fd2, "invalid arguments", strlen("invalid arguments"));
@@ -572,8 +587,10 @@ void killAll (struct process *processList){
 
 
 
-void run(char* buff, char* buff2, int* fd3, struct process *processList){
+void run(char* buff, char* buff2, int* fd3, int connfd, struct process *processList){
     
+    fcntl(fd3[1], F_SETFD, FD_CLOEXEC);
+    fcntl(fd3[0], F_SETFD, FD_CLOEXEC);
     
     int pid = fork();
     if(pid == -1){
@@ -582,37 +599,60 @@ void run(char* buff, char* buff2, int* fd3, struct process *processList){
             perror("client is dead");
         }
     }else if(pid > 0){
+        close(fd3[1]);
         sleep(1);
-        int pC = 0;
-        for (int i = 0 ; i < maxProcessLimit; i++) {
-            pC = i;
-            if(processList[i].pid < 1 ){
-                break;
+        
+        
+        ssize_t r3 = read(fd3[0], buff, 100);
+        if(r3 == -1){
+            perror("read from fd3[0]");
+        }else if(r3 == 0){
+            //            ssize_t w3 = write(fd3[1], "successfully launched", strlen("successfully launched"));
+            //            if(w3 == 0){
+            //                perror("server is dead");
+            //            }
+            
+            int pC = 0;
+            for (int i = 0 ; i < maxProcessLimit; i++) {
+                pC = i;
+                if(processList[i].pid < 1 ){
+                    break;
+                }
+            }
+            
+            strcpy(processList[pC].name, buff);
+            processList[pC].sno = pC;
+            processList[pC].pid = pid;
+            processList[pC].status = 1;
+            processList[pC].startTime = clock();
+            //        processList[pC].endTime = 0;
+            //        processList[pC].elapsedTime = 0;
+            
+            ssize_t w1 = write(connfd, "successfully launched", sizeof("successfully launched"));
+            if(w1 == -1){
+                perror("write on fd2[1]");
+            }
+        }else {
+            ssize_t w1 = write(connfd, buff, r3);
+            if(w1 == -1){
+                perror("write on fd2[1]");
             }
         }
         
-        strcpy(processList[pC].name, buff);
-        processList[pC].pid = pid;
-        processList[pC].status = 1;
-
         
-        ssize_t w3 = write(fd3[1], "successfully launched", strlen("successfully launched"));
-        if(w3 == 0){
-            perror("server is dead");
-        }
         
-    }else{
-        
+    }else if(pid == 0){
+        close(fd3[0]);
         if(execlp(buff,
                   buff, buff2,
                   (char*) NULL) == -1){
-            kill(getpid(), SIGKILL);
-            //            perror("Unable to run");
+            //            kill(getppid(), SIGKILL);
+            //                        perror("Unable to run");
+            
             ssize_t w3 = write(fd3[1], "unable to start program", strlen("unable to start program"));
             if(w3 == 0){
                 perror("server is dead");
             }
-            
         }
         else{
             
