@@ -128,7 +128,7 @@ int main (){
     
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    serv_addr.sin_port = htons(7716);
+    serv_addr.sin_port = htons(7726);                                               //porte
     
     bind(listenfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr));
     listen(listenfd, 10);
@@ -223,6 +223,9 @@ int main (){
                 //                }
                 server(buff, r1, connfd);
             }
+            
+            
+            kill(getpid(), SIGKILL);
         }
     }
     
@@ -304,15 +307,18 @@ void* serverInteraction(void* sock){
                         
                     }else if(strcmp(temp, "processes") == 0){
                         for (int i = 0; i < maxProcessLimit; i++) {
+                            
                             if(i == 0){
                                 if(connectionList[i].pid < 1){
                                     n = sprintf(buff, "no process");
                                     break;
                                 }
                             }
+                            
                             if(connectionList[i].pid < 1){
                                 break;
                             }
+                            
                             if (connectionList[i].status == 0) {
                                 continue;
                             }
@@ -321,17 +327,19 @@ void* serverInteraction(void* sock){
                             if (wp == -1) {
                                 perror("error on wp");
                             }else if (wp == 0){
+                                printf("fd does not exit");
                                 continue;
                             }
-                            
+                            printf("bhai thread");
                             ssize_t rp = read(connectionList[i].revfd, buff, 2000);
                             if (rp == -1) {
                                 perror("error on rp");
                             } else if (rp == 0) {
+                                printf("fd does not exit");
                                 continue;
                             }
-                            buff[rp - 1] = '\0';
-                            
+//                            buff[rp - 1] = '\0';
+                            n+= rp;
                             strcpy(processes, buff);
                         }
                         
@@ -372,16 +380,18 @@ void* serverInteraction(void* sock){
 void* getProcessList(void* fd){
     while(0==0){
         int *sockfd = (int*) fd;
-        
+
         int sendfd = sockfd[1];
         int revfd = sockfd[0];
-        
+        printf("sendfd: %d, revfd: %d" ,sendfd, revfd);
+
         char buff[2000];
-        
+        printf("hey I am doing this waiting for love ");
         ssize_t rd1 = read(revfd, buff, 2000);
         if(rd1 == -1){
             perror("error on rd1");
         }
+        printf("hey I am doing this waiting for another love ");
         int n = 0;
         for (int i = 0; i < maxProcessLimit; i++) {
             if(i==0){
@@ -403,16 +413,17 @@ void* getProcessList(void* fd){
                 processList[i].elapsedTime = ((double) clock() - processList[i].startTime);
             }
             n += sprintf(temp, "SNO: %d, Name: %s, PID: %d, Status: %d, StartTime: %lu, EndTime: %lu, ElapsedTime: %f \n", processList[i].sno, processList[i].name, processList[i].pid, processList[i].status, processList[i].startTime, processList[i].endTime, processList[i].elapsedTime);
-            //                    printf("%s", temp);
+//                                printf("%s", temp);
+            
             strcat(buff, temp);
         }
-        
+
         ssize_t wd1 = write(sendfd, buff, n);
         if(wd1 == -1){
             perror("error on wd1");
         }
     }
-//    pthread_exit(NULL);
+    pthread_exit(NULL);
 }
 
 
