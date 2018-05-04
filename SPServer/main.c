@@ -104,13 +104,15 @@ int main (){
     
     write(1, "Welcome to our Server", sizeof("Welcome to our Server"));
     
-    //    if(pipe(pfd) == -1){
-    //        perror("error on pfd");
-    //    }
+
     pthread_t sTod;
     //    pthread_t cTos;
     pthread_create(&sTod, NULL, serverInteraction, (void*) &listenfd);
     //    pthread_create(&cTos, NULL, processToServer, (void*) &pfd);
+    
+    for (int i = 0; i < maxProcessLimit; i++) {
+        connectionList[i].pid = 0;
+    }
     
     while(0==0){
         
@@ -125,12 +127,36 @@ int main (){
         
         char buff[2000];
         
+        int fd[2];
+        if(pipe(fd) == -1){
+            perror("error on pipe fd");
+        }
+        
         int pid = fork();
         if(pid == -1){
             perror("fork on connect");
         }
         
         if(pid > 0){
+            
+//            if(signal(SIGCHLD, signalHandler)==SIG_ERR){
+//                perror("sigchild error");
+//            }
+            
+            int pC = 0;
+            for (int i = 0 ; i < maxProcessLimit; i++) {
+                pC = i;
+                if(connectionList[i].pid < 1 ){
+                    break;
+                }
+            }
+            
+            connectionList[pC].sno = pC;
+            connectionList[pC].pid = pid;
+            connectionList[pC].sockfd = connfd;
+            connectionList[pC].revfd = fd[0];
+            connectionList[pC].sendfd = fd[1];
+            connectionList[pC].port = serv_addr.sin_port;
             
         }
         
