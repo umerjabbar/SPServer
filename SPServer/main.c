@@ -238,25 +238,34 @@ void* processToServer(void* sock){
 void* serverInteraction(void* sock){
     
     //    int sockfd = *(int*) sock;
-    
+    printf("a\n");
     while (0==0) {
         char buff[2000];
         char processes[2000];
         int n = 0;
         
+        ssize_t wd0 = write(1, "\n~", 2);
+        if(wd0 == -1){
+            perror("read from console");
+            continue;
+        }
+        
         ssize_t rd1 = read(0, buff, 2000);
         if(rd1 == -1){
             perror("read from console");
             continue;
-        }
-        if(strcmp(buff, "\n")){
-            continue;
+        }if(rd1 == 1){
+            if(strcmp(buff, "\n")){
+                continue;
+            }
         }
         
         buff[rd1-1] = '\0';
         
         char * token;
         token = strtok(buff, " \n");
+        
+        printf("b\n");
         
         if(token != NULL){
             
@@ -269,11 +278,16 @@ void* serverInteraction(void* sock){
                     token = strtok(NULL, " ");
                 }
                 if(count == 1){
+                    printf("c\n");
                     if(strcmp(temp, "connections") == 0){
                         
                         for (int i = 0; i < maxProcessLimit; i++) {
                             if(i==0){
                                 sprintf(buff, "\n");
+                                if(connectionList[i].pid < 1){
+                                    n = sprintf(buff, "");
+                                    break;
+                                }
                             }
                             if(connectionList[i].pid < 1){
                                 break;
@@ -281,6 +295,7 @@ void* serverInteraction(void* sock){
                             char temp[2000];
                             n += sprintf(temp, "SNO: %d, PID: %d, IP: %s, Port: %d, SocketFD: %d, SendFD: %d, ReceiveFD: %d, Status: %d \n", connectionList[i].sno, connectionList[i].pid, connectionList[i].ip, connectionList[i].port, connectionList[i].sockfd, connectionList[i].sendfd, connectionList[i].revfd, connectionList[i].status);
                             strcat(buff, temp);
+                        
                         }
                         
                     }else if(strcmp(temp, "processes") == 0){
@@ -310,11 +325,19 @@ void* serverInteraction(void* sock){
                             strcpy(processes, buff);
                         }
                         
+                    }else{
+                        n = sprintf(buff, "invalid command");
                     }
+                }else{
+                    n = sprintf(buff, "invalid command");
                 }
                 
             }else if(strcmp(token, "exit") == 0){
                 
+                
+            }else{
+                
+                n = sprintf(buff, "command not found");
                 
             }
             
@@ -322,6 +345,7 @@ void* serverInteraction(void* sock){
             
         }
         
+        printf("f\n");
         
         ssize_t wd1 = write(1, buff, n);
         if(wd1 == -1){
@@ -332,6 +356,13 @@ void* serverInteraction(void* sock){
     }
     
     //    pthread_exit(NULL);
+}
+
+
+void getProcessList(int sendfd, int revfd){
+    
+    
+    
 }
 
 
