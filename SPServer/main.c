@@ -97,7 +97,7 @@ int main (){
     
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    serv_addr.sin_port = htons(7703);
+    serv_addr.sin_port = htons(7706);
     
     bind(listenfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr));
     listen(listenfd, 10);
@@ -123,7 +123,7 @@ int main (){
             printf("hostname of child %s", hostname);
         }
         
-        char buff[1000];
+        char buff[2000];
         
         int pid = fork();
         if(pid == -1){
@@ -146,7 +146,7 @@ int main (){
             }
             
             while(0==0){
-                ssize_t r1 = read(connfd, buff, 1000);
+                ssize_t r1 = read(connfd, buff, 2000);
                 if(r1 == -1){
                     perror("read from fd1[0]");
                     break;
@@ -181,9 +181,9 @@ void* serverInteraction(void* sock){
     //    int sockfd = *(int*) sock;
     
     while (0==0) {
-        char buff[1000];
+        char buff[2000];
         
-        ssize_t rd1 = read(0, buff, 1000);
+        ssize_t rd1 = read(0, buff, 2000);
         if(rd1 == -1){
             perror("read from console");
             continue;
@@ -321,6 +321,10 @@ void server(char* buff, ssize_t size, int fd2, struct process *processList){
             int count = 0;
             size = 0;
             token = strtok(NULL, " ,-\n");
+            if(token != NULL){
+                size += atoi(token);
+                count++;
+            }
             while(token != NULL){
                 size *= atoi(token);
                 count++;
@@ -397,9 +401,9 @@ void server(char* buff, ssize_t size, int fd2, struct process *processList){
                         break;
                     }
                     write(1, "loop started", sizeof("loop started"));
-                    char temp[100];
+                    char temp[2000];
                     n += sprintf(temp, "SNO: %d, Name: %s, PID: %d, Status: %d, StartTime: %lu, EndTime: %lu, ElapsedTime: %d \n", processList[i].sno, processList[i].name, processList[i].pid, processList[i].status, processList[i].startTime, processList[i].endTime, processList[i].elapsedTime);
-                    //                    printf("%s", temp);
+                    printf("%s", temp);
                     strcat(buff, temp);
                 }
                 if(n == 0){
