@@ -27,9 +27,9 @@ struct process{
     char name[100];
     int pid;
     int status;
-    clock_t startTime;
-    clock_t endTime;
-    int elapsedTime;
+    time_t startTime;
+    time_t endTime;
+    double elapsedTime;
     
 };
 struct connection{
@@ -97,7 +97,7 @@ int main (){
     
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    serv_addr.sin_port = htons(7706);
+    serv_addr.sin_port = htons(7709);
     
     bind(listenfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr));
     listen(listenfd, 10);
@@ -402,7 +402,10 @@ void server(char* buff, ssize_t size, int fd2, struct process *processList){
                     }
                     write(1, "loop started", sizeof("loop started"));
                     char temp[2000];
-                    n += sprintf(temp, "SNO: %d, Name: %s, PID: %d, Status: %d, StartTime: %lu, EndTime: %lu, ElapsedTime: %d \n", processList[i].sno, processList[i].name, processList[i].pid, processList[i].status, processList[i].startTime, processList[i].endTime, processList[i].elapsedTime);
+                    if(processList[i].endTime == 0){
+                        processList[i].elapsedTime = ((double) clock() - processList[i].startTime);
+                    }
+                    n += sprintf(temp, "SNO: %d, Name: %s, PID: %d, Status: %d, StartTime: %lu, EndTime: %lu, ElapsedTime: %f \n", processList[i].sno, processList[i].name, processList[i].pid, processList[i].status, processList[i].startTime, processList[i].endTime, processList[i].elapsedTime);
                     printf("%s", temp);
                     strcat(buff, temp);
                 }
