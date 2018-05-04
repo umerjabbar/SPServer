@@ -19,6 +19,7 @@
 #include <netdb.h>
 #include <time.h>
 #include <fcntl.h>
+#include <arpa/inet.h>
 
 int maxProcessLimit = 50;
 
@@ -40,6 +41,7 @@ struct connection{
     int sockfd;
     int sendfd;
     int revfd;
+    int status;
 };
 
 struct connection connectionList[50];
@@ -52,7 +54,7 @@ void* serverInteraction(void* sock);
 void* processToServer(void* sock);
 
 
-void signalHandler(int signal){
+void signalHandlerChild(int signal){
     
     int status;
     int pid = wait(&status);
@@ -82,6 +84,34 @@ void signalHandler(int signal){
     }
     
 }
+void signalHandlerParent(int signal){
+    
+    int status;
+    int pid = wait(&status);
+    
+    switch (signal) {
+        case SIGCHLD:
+            
+            for (int i = 0 ; i < maxProcessLimit; i++) {
+                
+                if(connectionList[i].pid < 1 ){
+                    break;
+                }
+                if(connectionList[i].pid == pid){
+                    connectionList[i].status = 0;
+                    break;
+                }
+            }
+            
+            printf("Child Died: I am sorry for your loss");
+            break;
+            
+        default:
+            printf("water you looking at");
+            break;
+    }
+    
+}
 
 int main (){
     
@@ -97,7 +127,7 @@ int main (){
     
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    serv_addr.sin_port = htons(7712);
+    serv_addr.sin_port = htons(7714);
     
     bind(listenfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr));
     listen(listenfd, 10);
@@ -115,8 +145,9 @@ int main (){
     }
     
     while(0==0){
-        
-        connfd = accept(listenfd, (struct sockaddr*)NULL, NULL);
+        struct sockaddr_in clients;
+        int c = sizeof(struct sockaddr_in);
+        connfd = accept(listenfd, (struct sockaddr*) &clients, (socklen_t *) &c );
         char hostname[1024];
         
         if(getnameinfo((struct sockaddr*)&serv_addr, sizeof(serv_addr), hostname, 1024, NULL, 0, 0) == -1){
@@ -139,9 +170,9 @@ int main (){
         
         if(pid > 0){
             
-//            if(signal(SIGCHLD, signalHandler)==SIG_ERR){
-//                perror("sigchild error");
-//            }
+            if(signal(SIGCHLD, signalHandlerParent)==SIG_ERR){
+                perror("sigchild error");
+            }
             
             int pC = 0;
             for (int i = 0 ; i < maxProcessLimit; i++) {
@@ -156,14 +187,15 @@ int main (){
             connectionList[pC].sockfd = connfd;
             connectionList[pC].revfd = fd[0];
             connectionList[pC].sendfd = fd[1];
-            connectionList[pC].port = serv_addr.sin_port;
-            strcpy(connectionList[pC].ip, hostname);
+            connectionList[pC].port = clients.sin_port;
+            connectionList[pC].status = 1;
+            strcpy(connectionList[pC].ip, inet_ntoa(clients.sin_addr));
             
         }
         
         if(pid == 0){
             
-            if(signal(SIGCHLD, signalHandler)==SIG_ERR){
+            if(signal(SIGCHLD, signalHandlerChild)==SIG_ERR){
                 perror("sigchild error");
             }
             
@@ -209,26 +241,87 @@ void* serverInteraction(void* sock){
     
     while (0==0) {
         char buff[2000];
+        char processes[2000];
+        int n = 0;
         
         ssize_t rd1 = read(0, buff, 2000);
         if(rd1 == -1){
             perror("read from console");
             continue;
         }
+        if(strcmp(buff, "\n")){
+            continue;
+        }
+        
         buff[rd1-1] = '\0';
         
-        int n = 0;
-        for (int i = 0; i < maxProcessLimit; i++) {
-            if(i==0){
-                sprintf(buff, "\n");
+        char * token;
+        token = strtok(buff, " \n");
+        
+        if(token != NULL){
+            
+            if(strcmp(token, "list") == 0){
+                int count = 0;
+                token = strtok(NULL, " ");
+                char* temp = token;
+                while (token != NULL) {
+                    count++;
+                    token = strtok(NULL, " ");
+                }
+                if(count == 1){
+                    if(strcmp(temp, "connections") == 0){
+                        
+                        for (int i = 0; i < maxProcessLimit; i++) {
+                            if(i==0){
+                                sprintf(buff, "\n");
+                            }
+                            if(connectionList[i].pid < 1){
+                                break;
+                            }
+                            char temp[2000];
+                            n += sprintf(temp, "SNO: %d, PID: %d, IP: %s, Port: %d, SocketFD: %d, SendFD: %d, ReceiveFD: %d, Status: %d \n", connectionList[i].sno, connectionList[i].pid, connectionList[i].ip, connectionList[i].port, connectionList[i].sockfd, connectionList[i].sendfd, connectionList[i].revfd, connectionList[i].status);
+                            strcat(buff, temp);
+                        }
+                        
+                    }else if(strcmp(temp, "processes") == 0){
+                        for (int i = 0; i < maxProcessLimit; i++) {
+                            if(connectionList[i].pid < 1){
+                                break;
+                            }
+                            if (connectionList[i].status == 0) {
+                                continue;
+                            }
+                            
+                            ssize_t wp = write(connectionList[i].sendfd, "process", sizeof("process"));
+                            if (wp == -1) {
+                                perror("error on wp");
+                            }else if (wp == 0){
+                                continue;
+                            }
+                            
+                            ssize_t rp = read(connectionList[i].revfd, buff, 2000);
+                            if (rp == -1) {
+                                perror("error on rp");
+                            } else if (rp == 0) {
+                                continue;
+                            }
+                            buff[rp - 1] = '\0';
+                            
+                            strcpy(processes, buff);
+                        }
+                        
+                    }
+                }
+                
+            }else if(strcmp(token, "exit") == 0){
+                
+                
             }
-            if(connectionList[i].pid < 1){
-                break;
-            }
-            char temp[2000];
-            n += sprintf(temp, "SNO: %d, PID: %d, IP: %s, Port: %d, SocketFD: %d, SendFD: %d, ReceiveFD: %d \n", connectionList[i].sno, connectionList[i].pid, connectionList[i].ip, connectionList[i].port, connectionList[i].sockfd, connectionList[i].sendfd, connectionList[i].revfd);
-            strcat(buff, temp);
+            
+            
+            
         }
+        
         
         ssize_t wd1 = write(1, buff, n);
         if(wd1 == -1){
