@@ -43,7 +43,7 @@ struct connection{
     int revfd;
     int status;
 };
-
+struct sockaddr_in serv_addr;
 struct connection connectionList[50];
 struct process processList[50];
 
@@ -52,6 +52,7 @@ void run(char* buff, char* buff2, int* fd3, int connfd);
 void killAll(void);
 void* serverInteraction(void* sock);
 void* getProcessList(void* fd);
+void* ServerToClient(void* fd);
 
 
 void signalHandlerChild(int signal){
@@ -120,7 +121,7 @@ int main (){
     
     int listenfd = 0;
     
-    struct sockaddr_in serv_addr;
+    
     char sendBuff[1025];
     
     //initialization of socket
@@ -130,7 +131,7 @@ int main (){
     
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    serv_addr.sin_port = htons(7760);                                                    //porte
+    serv_addr.sin_port = htons(3000);                                                    //porte
     
     bind(listenfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr));
     listen(listenfd, 10);
@@ -163,7 +164,7 @@ int main (){
             
         }
         
-        char buff[10000];
+        
         
         int fd1[2];
         if(pipe(fd1) == -1){
@@ -202,12 +203,14 @@ int main (){
             connectionList[pC].status = 1;
             strcpy(connectionList[pC].ip, inet_ntoa(clients.sin_addr));
             
-            close(connfd);
+
 //            close(fd2[1]);
 //            close(fd1[0]);
         }
         
         if(pid == 0){
+            
+            close(listenfd);
             
             if(signal(SIGCHLD, signalHandlerChild)==SIG_ERR){
                 perror("sigchild error");
@@ -225,7 +228,16 @@ int main (){
             pthread_t thread1;
             pthread_create(&thread1, NULL, &getProcessList, (void*) fd3);
             
+//            pthread_t thread2;
+//            pthread_create(&thread2, NULL, &ServerToClient, (void*) &connfd);
+//
+//            pthread_t thread3;
+//            pthread_create(&thread3, NULL, &ServerToClient, (void*) &connfd);
+            
             while(0==0){
+                
+                char buff[10000];
+                
                 ssize_t r1 = read(connfd, buff, 10000);
                 if(r1 == -1){
                     perror("read from fd1[0]");
@@ -241,15 +253,26 @@ int main (){
                 //                }
                 server(buff, r1, connfd);
             }
-            
+            close(connfd);
 //            close(fd1[1]);
 //            close(fd2[0]);
             
         }
+        
+        
     }
     
     return 0;
 }
+
+//void* ServerToClient(void* fd){
+//
+//    int connfd = *(int*) fd;
+
+
+    
+//    pthread_exit(NULL);
+//}
 
 
 void* serverInteraction(void* sock){
@@ -283,11 +306,13 @@ void* serverInteraction(void* sock){
         if(token != NULL){
             
             if(strcmp(token, "list") == 0){
+                char* value;
                 int count = 0;
                 token = strtok(NULL, " ");
                 char* temp = token;
                 while (token != NULL) {
                     count++;
+                    value = token;
                     token = strtok(NULL, " ");
                 }
                 if(count == 1){
@@ -356,8 +381,8 @@ void* serverInteraction(void* sock){
                         n = sprintf(buff, "invalid command");
                     }
                 } else if (count == 2){
-                     if(strcmp(temp, "client") == 0){
-                        int sno = 0;
+                     if(strcmp(temp, "port") == 0){
+                        int sno = atoi(value);
                         for (int i=0; i<maxProcessLimit; i++) {
                             if(connectionList[i].pid < 1){
                                 n = sprintf(buff, "not found");
@@ -390,16 +415,56 @@ void* serverInteraction(void* sock){
                                 break;
                             }
                         }
-                    }
+                     }else if(strcmp(temp, "pid") == 0){
+                         int sno = atoi(value);
+                         for (int i=0; i<maxProcessLimit; i++) {
+                             if(connectionList[i].pid < 1){
+                                 n = sprintf(buff, "not found");
+                                 break;
+                             }
+                             if(connectionList[i].pid == sno){
+                                 if(connectionList[i].status == 0){
+                                     n = sprintf(buff, "your client is dead");
+                                     break;
+                                 }
+                                 
+                                 ssize_t wp = write(connectionList[i].sendfd, "process", sizeof("process"));
+                                 if (wp == -1) {
+                                     perror("error on wp");
+                                     break;
+                                 }else if (wp == 0){
+                                     write(1, "fd does not exit", sizeof("fd does not exit"));
+                                     break;
+                                 }
+                                 
+                                 ssize_t rp = read(connectionList[i].revfd, buff, 10000);
+                                 if (rp == -1) {
+                                     perror("error on rp");
+                                     break;
+                                 } else if (rp == 0) {
+                                     write(1, "fd does not exit", sizeof("fd does not exit"));
+                                     break;
+                                 }
+                                 n = (int) rp;
+                                 break;
+                             }
+                         }
+                     }
                      else {
-                         n = sprintf(buff, "invalid command");
+                         n = sprintf(buff, "command not found");
                      }
                 }else{
-                    n = sprintf(buff, "invalid command");
+                    n = sprintf(buff, "command not found");
                 }
                 
             }else if(strcmp(token, "exit") == 0){
                 for (int i=0; i<maxProcessLimit; i++) {
+                    if(i==0){
+                        if(connectionList[i].pid < 1){
+                            n = sprintf(buff, "no connection");
+                            break;
+                        }
+                    }
                     if(connectionList[i].pid < 1){
                         break;
                     }
@@ -426,11 +491,55 @@ void* serverInteraction(void* sock){
                     }
                     n = (int) rp;
                     
-                    close(connectionList[i].sockfd);
-                    kill(connectionList[i].pid, SIGKILL);
                 }
                 
-            }else{
+            }
+            else if (strcmp(token, "kill") == 0){
+                token = strtok(NULL, " ");
+                if(token != NULL){
+                
+                int sno = atoi(token);
+                for (int i=0; i<maxProcessLimit; i++) {
+                    if(connectionList[i].pid < 1){
+                        n = sprintf(buff, "not found");
+                        break;
+                    }
+                    if(connectionList[i].pid == sno){
+                        if(connectionList[i].status == 0){
+                            n = sprintf(buff, "your client is dead");
+                            break;
+                        }
+                        
+                        ssize_t wp = write(connectionList[i].sendfd, "process", sizeof("process"));
+                        if (wp == -1) {
+                            perror("error on wp");
+                            break;
+                        }else if (wp == 0){
+                            write(1, "fd does not exit", sizeof("fd does not exit"));
+                            break;
+                        }
+                        
+                        ssize_t rp = read(connectionList[i].revfd, buff, 10000);
+                        if (rp == -1) {
+                            perror("error on rp");
+                            break;
+                        } else if (rp == 0) {
+                            write(1, "fd does not exit", sizeof("fd does not exit"));
+                            break;
+                        }
+                        n = (int) rp;
+                        break;
+                    }
+                }
+            }
+            }
+            else if (strcmp(token, "port") == 0){
+                n = sprintf(buff, "%u", (serv_addr.sin_port));
+            }
+            else if (strcmp(token, "ip") == 0){
+                n = sprintf(buff, "%s", inet_ntoa(serv_addr.sin_addr));
+            }
+            else{
                 
                 n = sprintf(buff, "command not found");
                 
@@ -502,7 +611,7 @@ void* getProcessList(void* fd){
                     strcat(buff, temp);
                 }
                 
-            }else if (strcmp(token, "kill")){
+            }else if (strcmp(token, "kill") == 0){
                 
                 for (int i=0; i<maxProcessLimit; i++) {
                     if(processList[i].pid<0){
@@ -821,10 +930,22 @@ void server(char* buff, ssize_t size, int fd2){
                 if(num == 0){
                     
                     if(strcmp(pid, "All") == 0 || strcmp(pid, "all") == 0){
-                        ssize_t w1 = write(fd2, "exit", strlen("exit"));
-                        if(w1 == -1){
-                            perror("write on fd2[1]");
+                        for (int i = 0; i < maxProcessLimit; i++) {
+                            if(0==0){
+                                if(processList[i].pid < 1 ){
+                                    killed = -1;
+                                    break;
+                                }
+                            }
+                        if(processList[i].pid < 1 ){
+                            break;
                         }
+                        kill(processList[i].pid, SIGKILL);
+                            killed = 1;
+                    }
+                    
+                    }else {
+                        
                     }
                     killed = kill(-111 ,SIGKILL);
                 }else{
@@ -1003,7 +1124,5 @@ void run(char* buff, char* buff2, int* fd3, int connfd){
     
 }
 
-void killALLClients(){
-    
-}
+
 
