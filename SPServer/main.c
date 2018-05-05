@@ -128,7 +128,7 @@ int main (){
     
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    serv_addr.sin_port = htons(7737);                                               //porte
+    serv_addr.sin_port = htons(7744);                                               //porte
     
     bind(listenfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr));
     listen(listenfd, 10);
@@ -310,7 +310,7 @@ void* serverInteraction(void* sock){
                         }
                         
                     }else if(strcmp(temp, "processes") == 0){
-                        sprintf(buff, " ");
+                        n = sprintf(buff, "\n ---");
                         for (int i = 0; i < maxProcessLimit; i++) {
                             
                             char processes[2000];
@@ -347,10 +347,11 @@ void* serverInteraction(void* sock){
                                 write(1, "fd does not exit", sizeof("fd does not exit"));
                                 continue;
                             }
-                            processes[rp] = '\0';
+//                            processes[rp] = '\0';
+                            printf("\nprocess %s \n", processes );
                             
                             n+= rp;
-                            strcpy(buff, processes);
+                            strcat(buff, processes);
                         }
                         
                     }else{
@@ -391,7 +392,6 @@ void* getProcessList(void* fd){
 
         int sendfd = sockfd[1];
         int revfd = sockfd[0];
-//        printf("\nchild sendfd: %d, revfd: %d \n" ,sendfd, revfd);
 
         char buff[2000];
         int n = 0;
@@ -400,30 +400,24 @@ void* getProcessList(void* fd){
         if(rd1 == -1){
             perror("error on rd1");
         }
-        write(1, "loop about to started\n", sizeof("loop about to started\n"));
+        sprintf(buff, "\n");
         for (int i = 0; i < maxProcessLimit; i++) {
-//            if(i==0){
-////                sprintf(buff, "\n");
-//                if(processList[i].pid < 1){
-////                    ssize_t wd1 = write(sendfd, "", 0);
-////                    if(wd1 == -1){
-////                        perror("error on wd1");
-////                    }
-//                    break;
-//                }
-//            }
-            write(1, "loop started\n", sizeof("loop started\n"));
+            if(i==0){
+                if(processList[i].pid < 1){
+                    n = 1 ;
+
+                    break;
+                }
+            }
             if(processList[i].pid < 1){
                 break;
             }
-            write(1, "loop started\n", sizeof("loop started\n"));
+//            write(1, "loop started\n", sizeof("loop started\n"));
             char temp[2000];
             if(processList[i].endTime == 0){
                 processList[i].elapsedTime = ((double) clock() - processList[i].startTime);
             }
             n += sprintf(temp, "SNO: %d, Name: %s, PID: %d, Status: %d, StartTime: %lu, EndTime: %lu, ElapsedTime: %f \n", processList[i].sno, processList[i].name, processList[i].pid, processList[i].status, processList[i].startTime, processList[i].endTime, processList[i].elapsedTime);
-//            printf("%s", temp);
-            write(1, "iteration ended", sizeof("iteration ended"));
             strcat(buff, temp);
         }
         ssize_t wd1 = write(sendfd, buff, n);
