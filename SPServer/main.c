@@ -99,6 +99,9 @@ void signalHandlerParent(int signal){
                 }
                 if(connectionList[i].pid == pid){
                     connectionList[i].status = 0;
+                    close(connectionList[i].sockfd);
+                    close(connectionList[i].sendfd);
+                    close(connectionList[i].revfd);
                     break;
                 }
             }
@@ -116,7 +119,7 @@ void signalHandlerParent(int signal){
 int main (){
     
     int listenfd = 0;
-    int connfd = 0;
+    
     struct sockaddr_in serv_addr;
     char sendBuff[1025];
     
@@ -127,7 +130,7 @@ int main (){
     
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    serv_addr.sin_port = htons(7749);                                                    //porte
+    serv_addr.sin_port = htons(7760);                                                    //porte
     
     bind(listenfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr));
     listen(listenfd, 10);
@@ -142,10 +145,16 @@ int main (){
         connectionList[i].pid = 0;
     }
     
+
+    
     while(0==0){
+        
         struct sockaddr_in clients;
         int c = sizeof(struct sockaddr_in);
-        connfd = accept(listenfd, (struct sockaddr*) &clients, (socklen_t *) &c );
+        int connfd = accept(listenfd, (struct sockaddr*) &clients, (socklen_t *) &c );
+        if(connfd == -1){
+            perror("connectfd");
+        }
         char hostname[1024];
         
         if(getnameinfo((struct sockaddr*)&serv_addr, sizeof(serv_addr), hostname, 1024, NULL, 0, 0) == -1){
@@ -193,6 +202,9 @@ int main (){
             connectionList[pC].status = 1;
             strcpy(connectionList[pC].ip, inet_ntoa(clients.sin_addr));
             
+            close(connfd);
+//            close(fd2[1]);
+//            close(fd1[0]);
         }
         
         if(pid == 0){
@@ -230,8 +242,9 @@ int main (){
                 server(buff, r1, connfd);
             }
             
+//            close(fd1[1]);
+//            close(fd2[0]);
             
-            kill(getpid(), SIGKILL);
         }
     }
     
@@ -299,7 +312,7 @@ void* serverInteraction(void* sock){
                         }
                         
                     }else if(strcmp(temp, "processes") == 0){
-                        n = sprintf(buff, "\n ---");
+                        n = sprintf(buff, "\n ");
                         for (int i = 0; i < maxProcessLimit; i++) {
                             
                             char processes[10000];
@@ -416,8 +429,6 @@ void* serverInteraction(void* sock){
                     close(connectionList[i].sockfd);
                     kill(connectionList[i].pid, SIGKILL);
                 }
-                
-                
                 
             }else{
                 
