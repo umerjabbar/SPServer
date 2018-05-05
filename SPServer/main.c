@@ -128,7 +128,7 @@ int main (){
     
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    serv_addr.sin_port = htons(7726);                                               //porte
+    serv_addr.sin_port = htons(7730);                                               //porte
     
     bind(listenfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr));
     listen(listenfd, 10);
@@ -159,8 +159,12 @@ int main (){
         
         char buff[2000];
         
-        int fd[2];
-        if(pipe(fd) == -1){
+        int fd1[2];
+        if(pipe(fd1) == -1){
+            perror("error on pipe fd");
+        }
+        int fd2[2];
+        if(pipe(fd2) == -1){
             perror("error on pipe fd");
         }
         
@@ -186,8 +190,8 @@ int main (){
             connectionList[pC].sno = pC;
             connectionList[pC].pid = pid;
             connectionList[pC].sockfd = connfd;
-            connectionList[pC].revfd = fd[0];
-            connectionList[pC].sendfd = fd[1];
+            connectionList[pC].revfd = fd2[0];
+            connectionList[pC].sendfd = fd1[1];
             connectionList[pC].port = clients.sin_port;
             connectionList[pC].status = 1;
             strcpy(connectionList[pC].ip, inet_ntoa(clients.sin_addr));
@@ -205,8 +209,12 @@ int main (){
                 processList[i].status = 0;
             }
             
+            int fd3[2];
+            fd3[0] = fd1[0];
+            fd3[1] = fd2[1];
+            
             pthread_t thread1;
-            pthread_create(&thread1, NULL, &getProcessList, (void*) fd);
+            pthread_create(&thread1, NULL, &getProcessList, (void*) fd3);
             
             while(0==0){
                 ssize_t r1 = read(connfd, buff, 2000);
@@ -383,16 +391,16 @@ void* getProcessList(void* fd){
 
         int sendfd = sockfd[1];
         int revfd = sockfd[0];
-        printf("sendfd: %d, revfd: %d" ,sendfd, revfd);
+        printf("sendfd: %d, revfd: %d \n" ,sendfd, revfd);
 
         char buff[2000];
-        printf("hey I am doing this waiting for love ");
+        int n = 0;
+        
         ssize_t rd1 = read(revfd, buff, 2000);
         if(rd1 == -1){
             perror("error on rd1");
         }
-        printf("hey I am doing this waiting for another love ");
-        int n = 0;
+        
         for (int i = 0; i < maxProcessLimit; i++) {
             if(i==0){
                 sprintf(buff, "\n");
@@ -407,17 +415,16 @@ void* getProcessList(void* fd){
             if(processList[i].pid < 1){
                 break;
             }
-            //                    write(1, "loop started", sizeof("loop started"));
+            write(1, "loop started", sizeof("loop started"));
             char temp[2000];
             if(processList[i].endTime == 0){
                 processList[i].elapsedTime = ((double) clock() - processList[i].startTime);
             }
             n += sprintf(temp, "SNO: %d, Name: %s, PID: %d, Status: %d, StartTime: %lu, EndTime: %lu, ElapsedTime: %f \n", processList[i].sno, processList[i].name, processList[i].pid, processList[i].status, processList[i].startTime, processList[i].endTime, processList[i].elapsedTime);
-//                                printf("%s", temp);
-            
+            printf("%s", temp);
+
             strcat(buff, temp);
         }
-
         ssize_t wd1 = write(sendfd, buff, n);
         if(wd1 == -1){
             perror("error on wd1");
@@ -549,6 +556,7 @@ void server(char* buff, ssize_t size, int fd2){
             if(token != NULL){
                 size += atoi(token);
                 count++;
+                token = strtok(NULL, " ,-\n");
             }
             while(token != NULL){
                 size *= atoi(token);
